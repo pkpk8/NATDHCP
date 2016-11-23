@@ -26,6 +26,7 @@ does (mostly) work. :)
 Depends on openflow.discovery
 Works with openflow.spanning_tree
 """
+import pox.lib.packet as pkt
 
 from pox.core import core
 import pox.openflow.libopenflow_01 as of
@@ -35,6 +36,7 @@ from collections import defaultdict
 from pox.openflow.discovery import Discovery
 from pox.lib.util import dpid_to_str
 import time
+
 
 log = core.getLogger()
 
@@ -223,7 +225,6 @@ class PathInstalled (Event):
   Fired when a path is installed
   """
   def __init__ (self, path):
-    Event.__init__(self)
     self.path = path
 
 
@@ -313,10 +314,14 @@ class Switch (EventMixin):
 
 
   def _handle_PacketIn (self, event):
+   
     def flood ():
+
+  
+
       """ Floods the packet """
       if self.is_holding_down:
-        log.warning("Not flooding -- holddown active")
+        log.debug("Not flooding -- holddown active")
       msg = of.ofp_packet_out()
       # OFPP_FLOOD is optional; some switches may need OFPP_ALL
       msg.actions.append(of.ofp_action_output(port = of.OFPP_FLOOD))
@@ -421,13 +426,10 @@ class l2_multi (EventMixin):
   ])
 
   def __init__ (self):
-    # Listen to dependencies
-    def startup ():
-      core.openflow.addListeners(self, priority=0)
-      core.openflow_discovery.addListeners(self)
-    core.call_when_ready(startup, ('openflow','openflow_discovery'))
+    # Listen to dependencies (specifying priority 0 for openflow)
+    core.listen_to_dependencies(self, listen_args={'openflow':{'priority':0}})
 
-  def _handle_LinkEvent (self, event):
+  def _handle_openflow_discovery_LinkEvent (self, event):
     def flip (link):
       return Discovery.Link(link[2],link[3], link[0],link[1])
 
@@ -483,7 +485,7 @@ class l2_multi (EventMixin):
         log.debug("Unlearned %s", mac)
         del mac_map[mac]
 
-  def _handle_ConnectionUp (self, event):
+  def _handle_openflow_ConnectionUp (self, event):
     sw = switches.get(event.dpid)
     if sw is None:
       # New switch
@@ -493,7 +495,7 @@ class l2_multi (EventMixin):
     else:
       sw.connect(event.connection)
 
-  def _handle_BarrierIn (self, event):
+  def _handle_openflow_BarrierIn (self, event):
     wp = waiting_paths.pop((event.dpid,event.xid), None)
     if not wp:
       #log.info("No waiting packet %s,%s", event.dpid, event.xid)

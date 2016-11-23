@@ -196,6 +196,7 @@ class EthAddr (object):
     return self.toStr()
 
   def __cmp__ (self, other):
+    #TODO: Revisit this and other __cmp__ in Python 3.4
     try:
       if type(other) == EthAddr:
         other = other._value
@@ -203,15 +204,9 @@ class EthAddr (object):
         pass
       else:
         other = EthAddr(other)._value
-      if self._value == other:
-        return 0
-      if self._value < other:
-        return -1
-      if self._value > other:
-        return -1
-      raise RuntimeError("Objects can not be compared?")
+      return cmp(self._value, other)
     except:
-      return -other.__cmp__(self)
+      return -cmp(other, self)
 
   def __hash__ (self):
     return self._value.__hash__()
@@ -451,6 +446,7 @@ class IPAddr6 (object):
     if check_ipv4:
       if not self.is_ipv4:
         raise RuntimeError('Not an IPv4ish IPv6 address')
+    
     return IPAddr(self._value[-4:])
 
   @property
@@ -636,7 +632,7 @@ class IPAddr6 (object):
         other = type(self)(other)
       return cmp(self._value, other._value)
     except:
-      return -cmp(other,self)
+      return -1  #-cmp(other,self)
 
   def __hash__ (self):
     return self._value.__hash__()
@@ -650,6 +646,7 @@ class IPAddr6 (object):
   def __setattr__ (self, a, v):
     if hasattr(self, '_value'):
       raise TypeError("This object is immutable")
+     
     object.__setattr__(self, a, v)
 
   def set_mac (self, eth):

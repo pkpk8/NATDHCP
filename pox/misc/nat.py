@@ -195,13 +195,14 @@ class NAT (object):
     return NAT.strip_match(of.ofp_match.from_packet(o))
 
   def _handle_PacketIn (self, event):
+
     if self._outside_eth is None: return
 
     #print
-    #print "PACKET",event.connection.ports[event.port].name,event.port,
-    #print self.outside_port, self.make_match(event.ofp)
+   # print "PACKET",event.connection.ports[event.port].name,event.port,
+   # print self.outside_port, self.make_match(event.ofp)
 
-    incoming = event.port == self._outside_portno
+    incoming = (event.port == self._outside_portno and event.dpid == self.dpid)######################################################and..
 
     if self._gateway_eth is None:
       # Need to find gateway MAC -- send an ARP
@@ -227,6 +228,7 @@ class NAT (object):
       if self._is_local(ipp.dstip) and not dns_hack: return
     else:
       # Assume we only care about ourselves
+ 
       if ipp.dstip != self.outside_ip: return
 
     match = self.make_match(event.ofp)
@@ -247,6 +249,7 @@ class NAT (object):
       record.incoming_fm.data = event.ofp # Hacky!
     else:
       record = self._record_by_outgoing.get(match)
+
       if record is None:
         record = Record()
 
@@ -257,12 +260,14 @@ class NAT (object):
         fm = of.ofp_flow_mod()
         fm.flags |= of.OFPFF_SEND_FLOW_REM
         fm.hard_timeout = FLOW_TIMEOUT
-
+          
         fm.match = match.flip()
         fm.match.in_port = self._outside_portno
         fm.match.nw_dst = self.outside_ip
         fm.match.tp_dst = record.fake_srcport
         fm.match.dl_src = self._gateway_eth
+        fm.match.dpid=1                    #######################################
+
 
         # We should set dl_dst, but it can get in the way.  Why?  Because
         # in some situations, the ARP may ARP for and get the local host's
@@ -284,14 +289,21 @@ class NAT (object):
 
         record.incoming_match = self.strip_match(fm.match)
         record.incoming_fm = fm
+        print " Outside heading in to ",ipp.srcip,"output " ,event.port
+      
 
-        # Inside heading out
+
+      # Inside heading out
         fm = of.ofp_flow_mod()
         fm.data = event.ofp
         fm.flags |= of.OFPFF_SEND_FLOW_REM
         fm.hard_timeout = FLOW_TIMEOUT
         fm.match = match.clone()
+
+          
         fm.match.in_port = event.port
+  
+        fm.match.dpid=1                    ############ dpid ##################
         fm.actions.append(of.ofp_action_dl_addr.set_src(self._outside_eth))
         fm.actions.append(of.ofp_action_nw_addr.set_src(self.outside_ip))
         if dns_hack:
@@ -412,8 +424,10 @@ class NATDHCPD (DHCPD):
     return super(NATDHCPD,self)._handle_ConnectionUp(event)
 
   def _handle_PacketIn (self, event):
-    if self._dpid != event.dpid: return
-    if event.port == self._outside_port_no: return
+ 
+    #if self._dpid != event.dpid: return
+    #if event.port == self._outside_port_no : return
+
     return super(NATDHCPD,self)._handle_PacketIn(event)
 
 
@@ -451,7 +465,16 @@ def launch (dpid, outside_port, subnet = '172.16.1.0/24',
       dns_ip = None
 
     log.debug('Starting NAT')
-
+    print "******************************************************************************"
+    print "Starting NAT..............."
+    print "switch dpid: ",dpid
+    print "outside_port:",outside_port 
+    print "dns_ip:      ",dns_ip 
+    print "gateway_ip:  ",gateway_ip 
+    print "outside_ip:  ",outside_ip 
+    print "inside_ip:   ",inside_ip
+    print "subnet:      ",subnet
+    print "******************************************************************************"
     n = NAT(inside_ip, outside_ip, gateway_ip, dns_ip, outside_port, dpid,
             subnet=subnet)
     core.register(n)

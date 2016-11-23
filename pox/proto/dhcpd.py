@@ -290,6 +290,7 @@ class DHCPD (EventMixin):
     if ipp.dstip not in (IP_ANY,IP_BROADCAST,self.ip_addr):
       return
     nwp = ipp.payload
+
     if not nwp or not nwp.parsed or not isinstance(nwp, pkt.udp):
       return
     if nwp.srcport != pkt.dhcp.CLIENT_PORT:
@@ -297,6 +298,7 @@ class DHCPD (EventMixin):
     if nwp.dstport != pkt.dhcp.SERVER_PORT:
       return
     p = nwp.payload
+
     if not p:
       log.debug("%s: no packet", str(event.connection))
       return
@@ -317,7 +319,9 @@ class DHCPD (EventMixin):
     pool = self._get_pool(event)
     if pool is None:
       return
-
+    print "event.dpid:",event.dpid
+    print "event.port:",event.port
+    print p.options.get(p.MSG_TYPE_OPT)
     if t.type == p.DISCOVER_MSG:
       self.exec_discover(event, p, pool)
     elif t.type == p.REQUEST_MSG:
@@ -326,6 +330,7 @@ class DHCPD (EventMixin):
       self.exec_release(event, p, pool)
 
   def reply (self, event, msg):
+
     orig = event.parsed.find('dhcp')
     broadcast = (orig.flags & orig.BROADCAST_FLAG) != 0
     msg.op = msg.BOOTREPLY
@@ -351,6 +356,7 @@ class DHCPD (EventMixin):
     ethp.payload = ipp
     po = of.ofp_packet_out(data=ethp.pack())
     po.actions.append(of.ofp_action_output(port=event.port))
+   # po.actions.append(of.ofp_action_output(port=of.OFPP_FLOOD))
     event.connection.send(po)
 
   def nak (self, event, msg = None):
@@ -378,6 +384,13 @@ class DHCPD (EventMixin):
       return
     wanted_ip = p.options[p.REQUEST_IP_OPT].addr
     src = event.parsed.src
+    ###########################################################################
+ 
+    print p.options.get(p.HOST_NAME_OPT)
+    print p.options.get(p.REQUEST_IP_OPT)
+    print "src_mac:",src
+    print "wanted_ip: ",wanted_ip
+    ###########################################################################
     got_ip = None
     if src in self.leases:
       if wanted_ip != self.leases[src]:
@@ -416,6 +429,7 @@ class DHCPD (EventMixin):
     reply.siaddr = self.ip_addr
 
     wanted_opts = set()
+    
     if p.PARAM_REQ_OPT in p.options:
       wanted_opts.update(p.options[p.PARAM_REQ_OPT].options)
     self.fill(wanted_opts, reply)
